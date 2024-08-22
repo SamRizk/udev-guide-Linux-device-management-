@@ -116,7 +116,6 @@ ACTION=="add", SUBSYSTEM=="usb", RUN+="/usr/bin/notify-send 'USB Device Connecte
 
 This rule runs the command to send a desktop notification when a USB device is connected.
 
-### Advanced Usage
 
 #### Matching Multiple Attributes
 
@@ -161,6 +160,7 @@ The output of your `udev` rules depends on the commands you run and the actions 
 - **Symbolic Link**: A symbolic link will be created pointing to the actual device node.
 - **Permissions and Group**: The device node's permissions and group will be updated according to the rule.
 - **Running a Command**: The specified command will be executed, and any output from that command will be generated.
+---
 
 ### 1. Using `udevadm` to Inspect Devices
 
@@ -250,5 +250,213 @@ SUBSYSTEM=usb
 
 - **`man udev`**: Provides an overview of `udev` and its configuration.
 - **`man udevadm`**: Details on the `udevadm` command, useful for managing and querying `udev`.
+---
 
-By combining these tools and methods, you can explore all the relevant information that can be used in your `udev` rules, allowing you to create precise and effective rules for managing devices on your system.
+
+Certainly! Advanced usage of `udev` involves more complex rule-writing, handling various device events, and interacting with other system components. Below is a guide on advanced `udev` usage, including examples and explanations.
+
+---
+
+## Advanced `udev` Usage
+
+### 1. **Custom Environment Variables**
+
+`udev` allows you to create custom environment variables that can be used within the rules.
+
+#### Example
+
+```plaintext
+SUBSYSTEM=="usb", ATTR{idVendor}=="1234", ATTR{idProduct}=="5678", ENV{MY_VAR}="custom_value"
+```
+
+Here, `MY_VAR` is a custom environment variable set to "custom_value". You can use this variable later in the rule:
+
+```plaintext
+SUBSYSTEM=="usb", ATTR{idVendor}=="1234", ATTR{idProduct}=="5678", ENV{MY_VAR}=="custom_value", RUN+="/path/to/script"
+```
+
+### 2. **Complex Matching Conditions**
+
+You can use multiple matching conditions in a single rule. If all conditions are met, the rule applies.
+
+#### Example
+
+```plaintext
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd*", ENV{ID_FS_TYPE}=="ext4", RUN+="/path/to/mount-script"
+```
+
+This rule applies to block devices (`SUBSYSTEM=="block"`) with a kernel name matching `sd*` (e.g., `sda`, `sdb`, etc.), and a filesystem type of `ext4`. It triggers a script to mount the device.
+
+### 3. **Using GOTO for Flow Control**
+
+`udev` rules can use the `GOTO` statement to jump to a specific label, allowing for more complex rule sets.
+
+#### Example
+
+```plaintext
+SUBSYSTEM=="usb", ATTR{idVendor}=="1234", GOTO="vendor_specific"
+
+# Rules for other devices
+GOTO="end"
+
+LABEL="vendor_specific"
+# Actions for vendor 1234
+RUN+="/path/to/vendor-script"
+
+LABEL="end"
+```
+
+This structure allows you to separate and organize rules efficiently.
+
+### 4. **Running External Programs**
+
+You can use the `RUN` key to execute external programs or scripts when a device event occurs. However, `RUN` should be used carefully because it blocks `udevd`.
+
+#### Example
+
+```plaintext
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="eth*", RUN+="/usr/bin/net-config.sh"
+```
+
+This rule runs the `net-config.sh` script whenever a new network interface (`eth*`) is added.
+
+### 5. **Handling Device Removals**
+
+You can write rules that handle the removal of devices by using `ACTION=="remove"`.
+
+#### Example
+
+```plaintext
+ACTION=="remove", SUBSYSTEM=="block", KERNEL=="sd*", RUN+="/path/to/unmount-script"
+```
+
+This rule triggers a script to unmount a device when it is removed.
+
+### 6. **Setting Permissions and Ownership**
+
+You can control the permissions and ownership of device files created by `udev`.
+
+#### Example
+
+```plaintext
+SUBSYSTEM=="usb", ATTR{idVendor}=="1234", ATTR{idProduct}=="5678", MODE="0666", OWNER="username", GROUP="groupname"
+```
+
+This rule sets the mode to `0666` (read and write for everyone) and changes the owner and group of the device file.
+
+### 7. **Writing Persistent Device Names**
+
+You can create persistent names for devices using symbolic links.
+
+#### Example
+
+```plaintext
+SUBSYSTEM=="block", KERNEL=="sd*", ATTRS{serial}=="123456", SYMLINK+="mydisk"
+```
+
+This rule creates a symlink `/dev/mydisk` that points to the device with the specified serial number.
+
+### 8. **Logging and Debugging**
+
+You can increase the verbosity of `udev` logs to troubleshoot and debug rules.
+
+#### Example
+
+Increase logging level:
+
+```bash
+udevadm control --log-priority=debug
+```
+
+To monitor events in real-time:
+
+```bash
+udevadm monitor --environment --udev
+```
+
+### 9. **Dependency Management with `SYSTEMD_WANTS`**
+
+If you use systemd, you can control services based on device events using the `SYSTEMD_WANTS` key.
+
+#### Example
+
+```plaintext
+SUBSYSTEM=="block", KERNEL=="sda", ENV{SYSTEMD_WANTS}="backup.service"
+```
+
+This rule tells systemd to start `backup.service` when the device `/dev/sda` is added.
+
+### 10. **Custom Rules for Specific Kernel Versions**
+
+You can apply rules only on specific kernel versions by checking the kernel version.
+
+#### Example
+
+```plaintext
+ACTION=="add", KERNEL=="sd*", ENV{KERNEL_VERSION}=="4.19.*", RUN+="/path/to/script-for-4.19.sh"
+```
+
+### 11. **Using `IMPORT` to Load Additional Information**
+
+The `IMPORT` key can be used to import properties from external sources.
+
+#### Example
+
+```plaintext
+SUBSYSTEM=="usb", IMPORT{program}="/usr/bin/usb-info.sh"
+```
+
+This rule runs `usb-info.sh` and imports any variables it sets.
+
+### 12. **Using `OPTIONS` to Fine-tune Rule Behavior**
+
+`OPTIONS` can control how rules are applied or how certain actions are carried out.
+
+#### Example
+
+- **`last_rule`**: Prevents further rules from being applied after this one.
+  
+  ```plaintext
+  SUBSYSTEM=="usb", ATTR{idVendor}=="1234", OPTIONS+="last_rule"
+  ```
+
+- **`ignore_device`**: Ignores the device, preventing any further handling.
+  
+  ```plaintext
+  SUBSYSTEM=="usb", OPTIONS+="ignore_device"
+  ```
+
+### 13. **Using `TEST` to Condition on File Existence**
+
+You can use `TEST` to check if a file exists before applying a rule.
+
+#### Example
+
+```plaintext
+SUBSYSTEM=="block", TEST=="/etc/mount/disable", GOTO="skip_mount"
+
+# Normal mount rules
+RUN+="/path/to/mount-script"
+
+LABEL="skip_mount"
+```
+
+### 14. **Delaying Actions with `udev`**
+
+Sometimes, you might need to delay an action.
+
+#### Example
+
+```plaintext
+SUBSYSTEM=="net", KERNEL=="eth*", RUN+="/bin/sleep 5; /usr/bin/net-config.sh"
+```
+
+This delays the execution of `net-config.sh` by 5 seconds.
+
+---
+
+## Conclusion
+
+Advanced `udev` usage enables fine-grained control over how devices are managed in Linux. By using custom environment variables, complex matching conditions, and integrating with other system components like systemd, you can create powerful and flexible device management rules.
+
+For even more advanced configurations, consider combining `udev` rules with other Linux tools like `systemd`, shell scripts, and custom binaries.
